@@ -1,3 +1,9 @@
+network-manager-l2tp (1.2.0-0xenial1) sid; urgency=medium
+
+  * Update debian port to upsteram version 1.2.0
+
+ -- Dmitriy Balakin <balakin@0x0000.ru>  Sat, 6 Aug 2016 13:08:16 +0300
+
 network-manager-l2tp (0.9.8.7-0sid1) sid; urgency=medium
 
   * Ported to debian unstable
