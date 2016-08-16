@@ -34,19 +34,20 @@
 #include <glib.h>
 #include <glib/gi18n-lib.h>
 
-#ifdef NM_L2TP_OLD
+#ifdef NM_VPN_OLD
 #define NM_VPN_LIBNM_COMPAT
 #include <nm-connection.h>
 #include <nm-setting-vpn.h>
 
-#else /* !NM_L2TP_OLD */
+#else /* !NM_VPN_OLD */
 
 #include <NetworkManager.h>
 #endif
 
 #include "ipsec-dialog.h"
-#include "nm-l2tp.h"
-#include "../src/nm-l2tp-service-defines.h"
+#include "nm-default.h"
+#include "nm-l2tp-editor.h"
+#include "nm-service-defines.h"
 
 static const char *ipsec_keys[] = {
 	NM_L2TP_KEY_IPSEC_ENABLE,

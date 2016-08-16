@@ -19,86 +19,23 @@
  *
  **************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "nm-default.h"
+
+#include "import-export.h"
 
 #include <string.h>
 #include <inttypes.h>
 #include <sys/types.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
-#include <arpa/inet.h>
+#include <stdio.h>
 
-#include <netinet/in.h>
-
-#include <glib/gi18n-lib.h>
-
-#ifdef NM_L2TP_OLD
-#define NM_VPN_LIBNM_COMPAT
-#include <nm-setting-vpn.h>
-#include <nm-setting-connection.h>
-#include <nm-setting-ip4-config.h>
-
-#define NM_SETTING_IP_CONFIG_DHCP_SEND_HOSTNAME         NM_SETTING_IP4_CONFIG_DHCP_SEND_HOSTNAME
-#define NM_SETTING_IP_CONFIG_DHCP_SEND_HOSTNAME         NM_SETTING_IP4_CONFIG_DHCP_SEND_HOSTNAME
-#define NM_SETTING_IP_CONFIG_DNS                        NM_SETTING_IP4_CONFIG_DNS
-#define NM_SETTING_IP_CONFIG_DNS_SEARCH                 NM_SETTING_IP4_CONFIG_DNS_SEARCH
-#define NM_SETTING_IP_CONFIG_IGNORE_AUTO_DNS            NM_SETTING_IP4_CONFIG_IGNORE_AUTO_DNS
-#define NM_SETTING_IP_CONFIG_IGNORE_AUTO_DNS            NM_SETTING_IP4_CONFIG_IGNORE_AUTO_DNS
-#define NM_SETTING_IP_CONFIG_IGNORE_AUTO_ROUTES         NM_SETTING_IP4_CONFIG_IGNORE_AUTO_ROUTES
-#define NM_SETTING_IP_CONFIG_IGNORE_AUTO_ROUTES         NM_SETTING_IP4_CONFIG_IGNORE_AUTO_ROUTES
-#define NM_SETTING_IP_CONFIG_METHOD                     NM_SETTING_IP4_CONFIG_METHOD
-#define NM_SETTING_IP_CONFIG_NEVER_DEFAULT              NM_SETTING_IP4_CONFIG_NEVER_DEFAULT
-#define NM_SETTING_IP_CONFIG_NEVER_DEFAULT              NM_SETTING_IP4_CONFIG_NEVER_DEFAULT
-#define NM_SETTING_IP_CONFIG_ROUTES                     NM_SETTING_IP4_CONFIG_ROUTES
-#define NM_SETTING_IP_CONFIG                            NM_SETTING_IP4_CONFIG
-
-#define nm_setting_ip_config_add_dns                    nm_setting_ip4_config_add_dns
-#define nm_setting_ip_config_add_dns_search             nm_setting_ip4_config_add_dns_search
-#define nm_setting_ip_config_add_route                  nm_setting_ip4_config_add_route
-#define nm_setting_ip_config_get_dhcp_send_hostname     nm_setting_ip4_config_get_dhcp_send_hostname
-#define nm_setting_ip_config_get_dns                    nm_setting_ip4_config_get_dns
-#define nm_setting_ip_config_get_dns_search             nm_setting_ip4_config_get_dns_search
-#define nm_setting_ip_config_get_ignore_auto_dns        nm_setting_ip4_config_get_ignore_auto_dns
-#define nm_setting_ip_config_get_ignore_auto_routes     nm_setting_ip4_config_get_ignore_auto_routes
-#define nm_setting_ip_config_get_method                 nm_setting_ip4_config_get_method
-#define nm_setting_ip_config_get_never_default          nm_setting_ip4_config_get_never_default
-#define nm_setting_ip_config_get_num_dns                nm_setting_ip4_config_get_num_dns
-#define nm_setting_ip_config_get_num_dns_searches       nm_setting_ip4_config_get_num_dns_searches
-#define nm_setting_ip_config_get_num_routes             nm_setting_ip4_config_get_num_routes
-#define nm_setting_ip_config_get_route                  nm_setting_ip4_config_get_route
-#define nm_setting_ip_config_new                        nm_setting_ip4_config_new
-
-#define NMSettingIPConfig                               NMSettingIP4Config
-#define NMIPRoute                                       NMIP4Route
-
-#define nm_simple_connection_new                        nm_connection_new
-
-#define L2TP_PLUGIN_UI_ERROR                            NM_SETTING_VPN_ERROR
-#define L2TP_PLUGIN_UI_ERROR_INVALID_PROPERTY           NM_SETTING_VPN_ERROR_INVALID_PROPERTY
-#define L2TP_PLUGIN_UI_ERROR_MISSING_PROPERTY           NM_SETTING_VPN_ERROR_MISSING_PROPERTY
-#define L2TP_PLUGIN_UI_ERROR_FAILED                     NM_SETTING_VPN_ERROR_UNKNOWN
-
-#else /* !NM_L2TP_OLD */
-
-#include <NetworkManager.h>
-#include <nm-setting-ip4-config.h>
-
-#define L2TP_PLUGIN_UI_ERROR                            NM_CONNECTION_ERROR
-#define L2TP_PLUGIN_UI_ERROR_INVALID_PROPERTY           NM_CONNECTION_ERROR_INVALID_PROPERTY
-#define L2TP_PLUGIN_UI_ERROR_MISSING_PROPERTY           NM_CONNECTION_ERROR_MISSING_PROPERTY
-#define L2TP_PLUGIN_UI_ERROR_FAILED                     NM_CONNECTION_ERROR_FAILED
-#endif
-
-#include "import-export.h"
-#include "nm-l2tp.h"
-#include "../src/nm-l2tp-service-defines.h"
+#include "nm-utils/nm-vpn-plugin-utils.h"
 
 #define CONN_SECTION "connection"
 #define VPN_SECTION "vpn"
@@ -186,8 +123,8 @@ static void
 ip4_import_error (GError **error, const char *message, const char *key, const char *val)
 {
 	g_set_error (error,
-	             L2TP_PLUGIN_UI_ERROR,
-	             L2TP_PLUGIN_UI_ERROR_INVALID_PROPERTY,
+	             NMV_EDITOR_PLUGIN_ERROR,
+	             NMV_EDITOR_PLUGIN_ERROR_INVALID_PROPERTY,
 	             message,
 	             key,
 	             val);
@@ -205,7 +142,7 @@ import_ip4 (GKeyFile *keyfile, NMSettingIPConfig *s_ip4, GError **error)
 {
 	char *str_val;
 	int i;
-#if !NM_L2TP_OLD
+#if !NM_VPN_OLD
 	GError *local_error = NULL;
 #endif
 
@@ -218,8 +155,8 @@ import_ip4 (GKeyFile *keyfile, NMSettingIPConfig *s_ip4, GError **error)
 				continue;
 
 			g_set_error (error,
-			             L2TP_PLUGIN_UI_ERROR,
-			             L2TP_PLUGIN_UI_ERROR_MISSING_PROPERTY,
+			             NMV_EDITOR_PLUGIN_ERROR,
+			             NMV_EDITOR_PLUGIN_ERROR_MISSING_PROPERTY,
 			             _("Required property %s missing"),
 			             prop.name);
 			return FALSE;
@@ -261,7 +198,7 @@ import_ip4 (GKeyFile *keyfile, NMSettingIPConfig *s_ip4, GError **error)
 		dnses = g_key_file_get_string_list (keyfile, IP4_SECTION, NM_SETTING_IP_CONFIG_DNS,
 		                                    &length, error);
 		for (i=0; i<length; i++) {
-#if NM_L2TP_OLD
+#if NM_VPN_OLD
 			struct in_addr addr;
 			if (!inet_aton (dnses[i], &addr)){
 				ip4_import_error (error,
@@ -401,7 +338,7 @@ import_ip4 (GKeyFile *keyfile, NMSettingIPConfig *s_ip4, GError **error)
 				return FALSE;
 			}
 
-#if NM_L2TP_OLD
+#if NM_VPN_OLD
 			route = nm_ip4_route_new ();
 			nm_ip4_route_set_dest(route, dest.s_addr);
 			nm_ip4_route_set_prefix(route, prefix);
@@ -450,8 +387,8 @@ do_import (const char *path, GError **error)
 	keyfile = g_key_file_new ();
 	if (!g_key_file_load_from_file (keyfile, path, 0, error)) {
 		g_set_error (error,
-		             L2TP_PLUGIN_UI_ERROR,
-		             L2TP_PLUGIN_UI_ERROR_FAILED,
+		             NMV_EDITOR_PLUGIN_ERROR,
+		             NMV_EDITOR_PLUGIN_ERROR_FILE_NOT_VPN,
 		             _("does not look like a L2TP VPN connection (parse failed)"));
 		return NULL;
 	}
@@ -485,8 +422,8 @@ do_import (const char *path, GError **error)
 				continue;
 
 			g_set_error (error,
-			             L2TP_PLUGIN_UI_ERROR,
-			             L2TP_PLUGIN_UI_ERROR_MISSING_PROPERTY,
+			             NMV_EDITOR_PLUGIN_ERROR,
+			             NMV_EDITOR_PLUGIN_ERROR_MISSING_PROPERTY,
 			             _("Required property %s missing"),
 			             prop.name);
 			g_key_file_free (keyfile);
@@ -503,8 +440,8 @@ do_import (const char *path, GError **error)
 			if (int_val == 0 && *error){
 				g_clear_error(error);
 				g_set_error (error,
-				             L2TP_PLUGIN_UI_ERROR,
-				             L2TP_PLUGIN_UI_ERROR_INVALID_PROPERTY,
+				             NMV_EDITOR_PLUGIN_ERROR,
+				             NMV_EDITOR_PLUGIN_ERROR_INVALID_PROPERTY,
 				             _("Property %s can't be parsed as integer."),
 				             prop.name);
 				g_key_file_free (keyfile);
@@ -520,8 +457,8 @@ do_import (const char *path, GError **error)
 			if (!bool_val) {
 				g_clear_error(error);
 				g_set_error (error,
-				             L2TP_PLUGIN_UI_ERROR,
-				             L2TP_PLUGIN_UI_ERROR_INVALID_PROPERTY,
+				             NMV_EDITOR_PLUGIN_ERROR,
+				             NMV_EDITOR_PLUGIN_ERROR_INVALID_PROPERTY,
 				             _("Property %s can't be parsed as boolean. Only 'true' and 'false' allowed."),
 				             prop.name);
 				g_key_file_free (keyfile);
@@ -575,7 +512,7 @@ export_ip4(NMSettingIPConfig *s_ip4, GKeyFile *keyfile, GError **error)
 		gchar *dnses[num_dns];
 
 		for (i=0; i<num_dns; i++){
-#if NM_L2TP_OLD
+#if NM_VPN_OLD
 			struct in_addr addr;
 			guint32 dns;
 
@@ -610,7 +547,7 @@ export_ip4(NMSettingIPConfig *s_ip4, GKeyFile *keyfile, GError **error)
 
 		for (i=0; i<num_routes; i++){
 			GString *route_s;
-#if NM_L2TP_OLD
+#if NM_VPN_OLD
 			guint32 dest, prefix, nhop, metric;
 			struct in_addr addr;
 
@@ -714,8 +651,8 @@ do_export (const char *path, NMConnection *connection, GError **error)
 		if (!value && prop.required){
 			g_key_file_free(export_file);
 			g_set_error(error,
-			            L2TP_PLUGIN_UI_ERROR,
-			            L2TP_PLUGIN_UI_ERROR_MISSING_PROPERTY,
+			            NMV_EDITOR_PLUGIN_ERROR,
+			            NMV_EDITOR_PLUGIN_ERROR_MISSING_PROPERTY,
 			            _("Missing required property '%s'"),
 			            prop.name);
 			return FALSE;
@@ -744,8 +681,8 @@ do_export (const char *path, NMConnection *connection, GError **error)
 
 	if (!(file = fopen (path, "w"))) {
 		g_set_error(error,
-		            L2TP_PLUGIN_UI_ERROR,
-		            L2TP_PLUGIN_UI_ERROR_FAILED,
+		            NMV_EDITOR_PLUGIN_ERROR,
+		            NMV_EDITOR_PLUGIN_ERROR_FAILED,
 		            _("Couldn't open file for writing."));
 		g_key_file_free (export_file);
 		return FALSE;
